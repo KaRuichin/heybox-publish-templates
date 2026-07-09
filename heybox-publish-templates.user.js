@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         小黑盒发布模板助手
-// @namespace    https://github.com/yourname/heybox-publish-templates
+// @namespace    https://github.com/KaRuichin/heybox-publish-templates
 // @version      2.0.0
 // @description  为小黑盒创作发布页注入模板面板，一键填充。支持图文（已完成）/文章（预留）/视频（预留）
 // @author       you
