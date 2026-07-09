@@ -1,12 +1,15 @@
 // ==UserScript==
 // @name         小黑盒发布模板助手
 // @namespace    https://github.com/KaRuichin/heybox-publish-templates
-// @version      2.1.0
+// @version      2.1.1
 // @description  为小黑盒创作发布页注入模板面板，一键填充。支持图文（已完成）/文章（预留）/视频（预留）
 // @author       you
 // @match        https://www.xiaoheihe.cn/creator/editor/draft/image_text/*
 // @match        https://www.xiaoheihe.cn/creator/editor/draft/article/*
 // @match        https://www.xiaoheihe.cn/creator/editor/draft/video/*
+// @match        https://xiaoheihe.cn/creator/editor/draft/image_text/*
+// @match        https://xiaoheihe.cn/creator/editor/draft/article/*
+// @match        https://xiaoheihe.cn/creator/editor/draft/video/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @run-at       document-idle
