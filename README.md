@@ -25,11 +25,19 @@
 
 ## 安装
 
-1. 在浏览器中安装 [Tampermonkey](https://www.tampermonkey.net/) 扩展
-2. 安装脚本(二选一):
-   - 【推荐】前往 [Greasyfork 脚本页](https://greasyfork.org/zh-CN/scripts/586430) 点击安装,可跟随发布节奏收到更新提示
-   - 或直接安装 GitHub 源文件:[heybox-publish-templates.user.js](https://github.com/KaRuichin/heybox-publish-templates/raw/main/heybox-publish-templates.user.js)
-3. 在弹出的 Tampermonkey 页面中确认安装
+[![在 Greasy Fork 安装](https://img.shields.io/badge/Greasy%20Fork-一键安装-670000?logo=greasyfork&logoColor=white)](https://greasyfork.org/zh-CN/scripts/586430)
+[![版本](https://img.shields.io/greasyfork/v/586430?label=版本)](https://greasyfork.org/zh-CN/scripts/586430)
+
+**第一步**:为浏览器安装脚本管理器 [Tampermonkey](https://www.tampermonkey.net/)(油猴)。
+
+**第二步**:选择任一渠道安装本脚本,点击后 Tampermonkey 会弹出确认页,确认即可。
+
+| 渠道 | 说明 |
+| ---- | ---- |
+| 🟢 **[Greasy Fork](https://greasyfork.org/zh-CN/scripts/586430)** (推荐) | 自动检查并提示新版本,升级最省心 |
+| 🐙 **[GitHub 源文件](https://github.com/KaRuichin/heybox-publish-templates/raw/main/heybox-publish-templates.user.js)** | 始终是最新代码,适合想第一时间尝鲜的用户 |
+
+> 💡 更新脚本时，若 Tampermonkey 提示「即将重置所有脚本的设置」，已保存的模板会随之清空。但脚本会在下次打开发布页时从站点本地备份自动恢复（详见 [本地存储](#功能) 说明），无需担心。
 
 ## 使用方法
 
