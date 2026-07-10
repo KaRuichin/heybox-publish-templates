@@ -26,7 +26,9 @@
 ## 安装
 
 1. 在浏览器中安装 [Tampermonkey](https://www.tampermonkey.net/) 扩展
-2. 点击安装脚本:[heybox-publish-templates.user.js](https://github.com/KaRuichin/heybox-publish-templates/raw/main/heybox-publish-templates.user.js)
+2. 安装脚本(二选一):
+   - 【推荐】前往 [Greasyfork 脚本页](https://greasyfork.org/zh-CN/scripts/586430) 点击安装,可跟随发布节奏收到更新提示
+   - 或直接安装 GitHub 源文件:[heybox-publish-templates.user.js](https://github.com/KaRuichin/heybox-publish-templates/raw/main/heybox-publish-templates.user.js)
 3. 在弹出的 Tampermonkey 页面中确认安装
 
 ## 使用方法
