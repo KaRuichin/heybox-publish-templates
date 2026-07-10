@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小黑盒发布模板助手
 // @namespace    https://github.com/KaRuichin/heybox-publish-templates
-// @version      2.2.0
+// @version      2.3.0
 // @description  为小黑盒创作发布页注入模板面板，一键填充。支持图文（已完成）/文章（预留）/视频（预留）
 // @author       you
 // @match        https://www.xiaoheihe.cn/*
@@ -246,6 +246,32 @@
             await addRelation('community', t.communities);
             await addRelation('hashtag', t.topics);
         },
+
+        // 读取当前编辑页内容 → 模板对象（“读取页面”按钮用）
+        read() {
+            const t = {};
+            t.title = document.querySelector('.editor-title__container .ProseMirror')?.textContent.trim() || '';
+            const body = document.querySelector('.image-text__edit-content .ProseMirror');
+            t.body = body ? [...body.querySelectorAll('p')].map((p) => p.textContent).join('\n').trim() : '';
+            t.communities = [...document.querySelectorAll('.editor__topic-item .topic-item__text')].map((e) => e.textContent.trim());
+            t.topics = [...document.querySelectorAll('.editor__hashtag-item .hashtag-item__text')].map((e) => e.textContent.trim());
+
+            const activeOf = (label) =>
+                rowByLabel(label)?.querySelector('.selector__active')?.textContent.trim() || '';
+            const decl = activeOf('内容声明');
+            t.contentDecl = ['原创', '转载'].includes(decl) ? decl : '';
+            if (t.contentDecl === '转载') {
+                t.reprintSource = activeOf('转载来源') || '站外';
+                t.reprintInfo = document.querySelector('.declaration__input input')?.value || '';
+                t.reprintStatement = activeOf('转载声明') || '未选择';
+            } else if (t.contentDecl === '原创') {
+                t.reprintPermission = activeOf('转载权限') || '未选择';
+            }
+            // 页面上“其他声明”实为单选，读到有效值就放入数组
+            const other = activeOf('其他声明');
+            t.otherDecl = OTHER_OPTS.includes(other) ? [other] : [];
+            return t;
+        },
     };
 
     /* ---------- 文章适配器（预留，TODO） ---------- */
@@ -316,6 +342,8 @@
       .hb-save{background:#10b981;color:#fff}
       .hb-del{background:#ef4444;color:#fff}
       .hb-pick{background:#6366f1;color:#fff;white-space:nowrap}
+      .hb-read{background:#f59e0b;color:#fff;flex:1}
+      .hb-export{background:#64748b;color:#fff;flex:1}
       #hb-tpl-panel .grp-reprint,#hb-tpl-panel .grp-original{display:none;border-left:2px solid #eee;padding-left:8px;margin-top:6px}
       #hb-tpl-close{position:absolute;right:10px;top:10px;background:transparent;color:#999;font-size:18px;padding:0}
     `;
@@ -360,12 +388,18 @@
         <select id="tpl-select"><option value="">— 新建 —</option></select>
         <button class="hb-del" id="tpl-del" style="flex:0 0 auto">删除</button>
       </div>
+      <label>模板名称</label>
+      <input id="tpl-name" maxlength="20" placeholder="留空则以标题命名">
       ${adapter.fields.map(fieldHTML).join('')}
       <div class="btns">
         <button class="hb-fill" id="tpl-fill">⚡ 填入编辑器</button>
         <button class="hb-save" id="tpl-save">💾 保存模板</button>
       </div>
-      <div style="margin-top:8px;color:#999;font-size:12px">新建时“选择模板”留空；选中已有模板则覆盖保存。</div>
+      <div class="btns">
+        <button class="hb-read" id="tpl-read">📥 读取页面内容</button>
+        <button class="hb-export" id="tpl-export">📤 导出JSON</button>
+      </div>
+      <div style="margin-top:8px;color:#999;font-size:12px">新建时“选择模板”留空；选中已有模板则覆盖保存（可改名）。“读取页面内容”会把当前编辑器已填的内容抓到上方表单。</div>
     `;
         document.body.appendChild(p);
 
@@ -400,12 +434,14 @@
                     t[f.key] = $(`fld-${f.key}`).value;
                 }
             });
-            t.__name = (t.title || '未命名').toString().slice(0, 20);
+            // 模板名称：优先用单独配置的名称，留空则回退到标题
+            t.__name = ($('tpl-name').value.trim() || t.title || '未命名').toString().slice(0, 20);
             return t;
         };
 
-        // 模板对象 → 写回表单
+        // 模板对象 → 写回表单（t.__name 缺失时保留名称输入框现值，如“读取页面”）
         const writeForm = (t) => {
+            if (t.__name !== undefined) $('tpl-name').value = t.__name || '';
             adapter.fields.forEach((f) => {
                 if (f.type === 'checkbox') {
                     p.querySelectorAll(`#fld-${f.key} input`).forEach((c) => (c.checked = (t[f.key] || []).includes(c.value)));
@@ -433,8 +469,25 @@
         refreshSelect();
 
         $('tpl-select').addEventListener('change', (e) => {
-            if (e.target.value === '') return;
+            if (e.target.value === '') { $('tpl-name').value = ''; return; }
             writeForm(loadTpls(pageType)[e.target.value]);
+        });
+
+        // 读取当前编辑页内容到表单（不覆盖模板名称）
+        $('tpl-read').addEventListener('click', () => {
+            if (!adapter.read) { alert('该页面类型暂不支持读取'); return; }
+            writeForm(adapter.read());
+        });
+
+        // 导出当前表单配置为 JSON 文件
+        $('tpl-export').addEventListener('click', () => {
+            const data = readForm();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${data.__name || '模板'}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
         });
 
         $('tpl-save').addEventListener('click', () => {
