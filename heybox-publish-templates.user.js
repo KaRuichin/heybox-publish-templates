@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小黑盒发布模板助手
 // @namespace    https://github.com/KaRuichin/heybox-publish-templates
-// @version      2.3.0
+// @version      2.3.1
 // @description  为小黑盒创作发布页注入模板面板，一键填充。支持图文（已完成）/文章（预留）/视频（预留）
 // @author       you
 // @match        https://www.xiaoheihe.cn/*
@@ -305,13 +305,26 @@
 
     /* =======================================================================
      *  存储（模板按发布类型分开保存，互不干扰）
+     *  Tampermonkey 重新安装脚本时会清空 GM 存储，因此同时镜像一份到
+     *  站点 localStorage；GM 存储为空而镜像存在时自动恢复。
      * ===================================================================== */
     const storageKey = (type) => `heybox_templates_${type}_v1`;
     const loadTpls = (type) => {
-        try { return JSON.parse(GM_getValue(storageKey(type), '') || '[]'); }
+        const key = storageKey(type);
+        let raw = GM_getValue(key, '');
+        if (!raw) {
+            try { raw = localStorage.getItem(key) || ''; } catch (e) { /* 忽略 */ }
+            if (raw) GM_setValue(key, raw); // 脚本重装后从镜像恢复
+        }
+        try { return JSON.parse(raw || '[]'); }
         catch (e) { return []; }
     };
-    const saveTpls = (type, arr) => GM_setValue(storageKey(type), JSON.stringify(arr));
+    const saveTpls = (type, arr) => {
+        const key = storageKey(type);
+        const raw = JSON.stringify(arr);
+        GM_setValue(key, raw);
+        try { localStorage.setItem(key, raw); } catch (e) { /* 忽略 */ }
+    };
 
     /* =======================================================================
      *  面板 UI（根据 adapter.fields 动态生成，文章/视频将来自动复用）
