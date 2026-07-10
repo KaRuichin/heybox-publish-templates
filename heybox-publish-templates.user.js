@@ -1,15 +1,11 @@
 // ==UserScript==
 // @name         小黑盒发布模板助手
 // @namespace    https://github.com/KaRuichin/heybox-publish-templates
-// @version      2.1.1
+// @version      2.2.0
 // @description  为小黑盒创作发布页注入模板面板，一键填充。支持图文（已完成）/文章（预留）/视频（预留）
 // @author       you
-// @match        https://www.xiaoheihe.cn/creator/editor/draft/image_text/*
-// @match        https://www.xiaoheihe.cn/creator/editor/draft/article/*
-// @match        https://www.xiaoheihe.cn/creator/editor/draft/video/*
-// @match        https://xiaoheihe.cn/creator/editor/draft/image_text/*
-// @match        https://xiaoheihe.cn/creator/editor/draft/article/*
-// @match        https://xiaoheihe.cn/creator/editor/draft/video/*
+// @match        https://www.xiaoheihe.cn/*
+// @match        https://xiaoheihe.cn/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @run-at       document-idle
@@ -267,42 +263,40 @@
     };
 
     /* =======================================================================
-     *  页面类型判断 + 选择适配器
+     *  页面类型判断（小黑盒是 SPA，站内跳转不重新加载页面，需按当前 URL 实时判断）
      * ===================================================================== */
-    const PAGE_TYPE = location.pathname.includes('/article/') ? 'article'
-        : location.pathname.includes('/video/') ? 'video'
-            : 'image_text';
-
     const ADAPTERS = {
         image_text: imageTextAdapter,
         article: articleAdapter,
         video: videoAdapter,
     };
-    const adapter = ADAPTERS[PAGE_TYPE];
 
-    if (!adapter || !adapter.apply) {
-        console.log(`[发布模板助手] "${adapter?.label || PAGE_TYPE}" 类型暂未支持，敬请期待。`);
-        return; // 文章/视频页面不注入面板，避免误操作
+    // 从当前 URL 判断发布类型；非发布页返回 null
+    function detectPageType() {
+        const m = location.pathname.match(/\/creator\/editor\/draft\/(image_text|article|video)(\/|$)/);
+        return m ? m[1] : null;
     }
 
     /* =======================================================================
      *  存储（模板按发布类型分开保存，互不干扰）
      * ===================================================================== */
-    const STORAGE_KEY = `heybox_templates_${PAGE_TYPE}_v1`;
-    const loadTpls = () => {
-        try { return JSON.parse(GM_getValue(STORAGE_KEY, '') || '[]'); }
+    const storageKey = (type) => `heybox_templates_${type}_v1`;
+    const loadTpls = (type) => {
+        try { return JSON.parse(GM_getValue(storageKey(type), '') || '[]'); }
         catch (e) { return []; }
     };
-    const saveTpls = (arr) => GM_setValue(STORAGE_KEY, JSON.stringify(arr));
+    const saveTpls = (type, arr) => GM_setValue(storageKey(type), JSON.stringify(arr));
 
     /* =======================================================================
      *  面板 UI（根据 adapter.fields 动态生成，文章/视频将来自动复用）
      * ===================================================================== */
-    function buildPanel() {
+    function buildPanel(pageType, adapter) {
         if (document.getElementById('hb-tpl-panel')) return;
 
-        const style = document.createElement('style');
-        style.textContent = `
+        if (!document.getElementById('hb-tpl-style')) {
+            const style = document.createElement('style');
+            style.id = 'hb-tpl-style';
+            style.textContent = `
       #hb-tpl-toggle{position:fixed;right:16px;bottom:96px;z-index:99998;background:#222;color:#fff;
         border:none;border-radius:22px;padding:10px 16px;cursor:pointer;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
       #hb-tpl-panel{position:fixed;right:16px;bottom:140px;z-index:99999;width:360px;max-height:78vh;overflow:auto;
@@ -325,7 +319,8 @@
       #hb-tpl-panel .grp-reprint,#hb-tpl-panel .grp-original{display:none;border-left:2px solid #eee;padding-left:8px;margin-top:6px}
       #hb-tpl-close{position:absolute;right:10px;top:10px;background:transparent;color:#999;font-size:18px;padding:0}
     `;
-        document.head.appendChild(style);
+            document.head.appendChild(style);
+        }
 
         // 根据 fields 生成表单 HTML
         const fieldHTML = (f) => {
@@ -427,7 +422,7 @@
             const sel = $('tpl-select');
             const cur = sel.value;
             sel.innerHTML = '<option value="">— 新建 —</option>';
-            loadTpls().forEach((t, i) => {
+            loadTpls(pageType).forEach((t, i) => {
                 const o = document.createElement('option');
                 o.value = i;
                 o.textContent = t.__name || `模板${i + 1}`;
@@ -439,15 +434,15 @@
 
         $('tpl-select').addEventListener('change', (e) => {
             if (e.target.value === '') return;
-            writeForm(loadTpls()[e.target.value]);
+            writeForm(loadTpls(pageType)[e.target.value]);
         });
 
         $('tpl-save').addEventListener('click', () => {
-            const arr = loadTpls();
+            const arr = loadTpls(pageType);
             const data = readForm();
             const idx = $('tpl-select').value;
             if (idx !== '') arr[idx] = data; else arr.push(data);
-            saveTpls(arr);
+            saveTpls(pageType, arr);
             refreshSelect();
             alert('已保存模板：' + data.__name);
         });
@@ -455,9 +450,9 @@
         $('tpl-del').addEventListener('click', () => {
             const i = $('tpl-select').value;
             if (i === '') return;
-            const arr = loadTpls();
+            const arr = loadTpls(pageType);
             arr.splice(i, 1);
-            saveTpls(arr);
+            saveTpls(pageType, arr);
             $('tpl-select').value = '';
             refreshSelect();
         });
@@ -483,12 +478,46 @@
     }
 
     /* =======================================================================
-     *  等待编辑器加载后注入面板
+     *  启动 + SPA 路由监听
+     *  小黑盒站内跳转（如点“发布内容”）走前端路由，不触发页面加载，
+     *  因此 hook history 并在路由变化时按当前 URL 注入/移除面板。
      * ===================================================================== */
-    const timer = setInterval(() => {
-        if (document.querySelector('.creator-editor__form-label') || document.querySelector('.ProseMirror')) {
-            clearInterval(timer);
-            buildPanel();
+    let builtFor = null;  // 当前已注入面板的发布类型
+    let setupSeq = 0;     // 路由连续变化时，作废旧的等待流程
+
+    function teardown() {
+        stopPick();
+        document.getElementById('hb-tpl-panel')?.remove();
+        document.getElementById('hb-tpl-toggle')?.remove();
+        builtFor = null;
+    }
+
+    async function setup() {
+        const type = detectPageType();
+        if (type === builtFor) return; // 同类型页面内跳转（如 new→草稿id），面板保留
+        const seq = ++setupSeq;
+        teardown();
+        if (!type) return;
+        const adapter = ADAPTERS[type];
+        if (!adapter || !adapter.apply) {
+            console.log(`[发布模板助手] "${adapter?.label || type}" 类型暂未支持，敬请期待。`);
+            return;
         }
-    }, 500);
+        // 等编辑器渲染完成
+        const ready = await waitFor(
+            () => document.querySelector('.creator-editor__form-label') || document.querySelector('.ProseMirror'),
+            15000, 400
+        );
+        if (!ready || seq !== setupSeq) return; // 超时，或等待期间又发生了跳转
+        builtFor = type;
+        buildPanel(type, adapter);
+    }
+
+    const onRoute = () => setTimeout(setup, 0);
+    const origPush = history.pushState;
+    history.pushState = function (...args) { origPush.apply(this, args); onRoute(); };
+    const origReplace = history.replaceState;
+    history.replaceState = function (...args) { origReplace.apply(this, args); onRoute(); };
+    window.addEventListener('popstate', onRoute);
+    setup();
 })();
